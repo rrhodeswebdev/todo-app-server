@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Color {
+  RED
+  ORANGE
+  YELLOW
+  GREEN
+  BLUE
+  INDIGO
+  PURPLE
+  PINK
+  BROWN
+}
+
+model Task {
+  id        String   @id @default(uuid())
+  title     String
+  completed Boolean  @default(false)
+  color     Color    @default(BLUE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
