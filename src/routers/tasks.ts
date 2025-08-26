@@ -1,8 +1,22 @@
 import express from "express";
-import { PrismaClient } from "../../prisma/generated/client.js";
+import { PrismaClient, Prisma } from "../../prisma/generated/client.js";
+import { z } from "zod";
+import { Color } from "../../prisma/generated/enums.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+const colorEnum = z.enum(Color);
+
+const createTaskSchema = z.object({
+    title: z.string().min(1, "Title is required"),
+});
+
+const updateTaskSchema = z.object({
+    title: z.string().min(1, "Title is required").optional(),
+    completed: z.boolean().optional(),
+    color: colorEnum.optional(),
+});
 
 // GET all tasks
 router.get("/", async (req, res) => {
@@ -28,7 +42,16 @@ router.get("/", async (req, res) => {
 // POST a task
 router.post("/", async (req, res) => {
     try {
-        const { title } = req.body;
+        const validation = createTaskSchema.safeParse(req.body);
+
+        if (!validation.success) {
+            return res.status(400).json({
+                error: "Validation error",
+                details: validation.error.issues,
+            });
+        }
+
+        const { title } = validation.data;
 
         const task = await prisma.task.create({
             data: {
@@ -52,7 +75,23 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, color } = req.body;
+
+        if (!id || typeof id !== "string") {
+            return res.status(400).json({
+                error: "Invalid ID",
+                message: "Task ID is required",
+            });
+        }
+
+        const validation = updateTaskSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({
+                error: "Validation error",
+                details: validation.error.issues,
+            });
+        }
+
+        const { title, completed, color } = validation.data;
 
         const task = await prisma.task.update({
             where: {
@@ -60,6 +99,7 @@ router.put("/:id", async (req, res) => {
             },
             data: {
                 title,
+                completed,
                 color,
                 updatedAt: new Date(),
             },
@@ -69,7 +109,6 @@ router.put("/:id", async (req, res) => {
             data: task,
         });
     } catch (error) {
-        console.error("Error updating task:", error);
         res.status(500).json({
             error: "Internal server error",
             message: "Failed to update task",
@@ -82,6 +121,13 @@ router.delete("/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
+        if (!id || typeof id !== "string") {
+            return res.status(400).json({
+                error: "Invalid Task",
+                message: "Task is not found",
+            });
+        }
+
         await prisma.task.delete({
             where: {
                 id,
@@ -90,7 +136,6 @@ router.delete("/:id", async (req, res) => {
 
         res.status(204).send();
     } catch (error) {
-        console.error("Error deleting task:", error);
         res.status(500).json({
             error: "Internal server error",
             message: "Failed to delete task",
